@@ -36,7 +36,7 @@ Para executar a aplicação, os seguintes arquivos devem estar no mesmo diretór
 
 ## Requisitos
 
-* Python 3.x
+* Python 3.12 (recomendado)
 * Bibliotecas Python:
     * `customtkinter`
     * `pandas`
@@ -50,6 +50,21 @@ Para executar a aplicação, os seguintes arquivos devem estar no mesmo diretór
     pip install customtkinter pandas numpy matplotlib Pillow
     # Se adicionou a planilha novamente: pip install tksheet
     ```
+
+### Ambiente Python recomendado
+
+Para evitar compilações nativas (como pandas com Cython) e garantir wheels prontos, use Python 3.12.
+
+Passos rápidos com venv:
+
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -U pip
+pip install -r requirements.txt
+```
+
+Observação: o arquivo `runtime.txt` e `.python-version` fixam a versão 3.12.5 para plataformas como Render/Heroku e pyenv. Em ambientes que usam Python 3.13, o pip pode tentar compilar `pandas==2.2.2` do código-fonte e falhar; por isso fixamos 3.12.
 
 ## Configuração Essencial (`config.ini`)
 
