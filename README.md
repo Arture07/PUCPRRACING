@@ -65,6 +65,17 @@ Este arquivo é **crucial** para que a ferramenta funcione corretamente com os *
 
 ## Como Executar
 
+### Opção A) Interface Web (Flask)
+
+1. Certifique-se de ter Python 3 e instale as dependências:
+    - via arquivo `requirements.txt` ou já usando o ambiente `.venv` do projeto.
+2. Inicie o servidor:
+    - `python app.py`
+3. Abra no navegador: http://localhost:5000
+4. Envie um CSV em "Início" e vá para "Explorar" para ver gráficos e métricas.
+
+### Opção B) Interface Desktop (CustomTkinter)
+
 1.  Certifique-se de ter Python 3 e as bibliotecas listadas em "Requisitos" instaladas.
 2.  Coloque todos os arquivos `.py` (`main_gui.py`, `config_manager.py`, etc.), o arquivo de logo `image_cf6f57.png` no mesmo diretório.
 3.  (Opcional) Coloque seu arquivo `config_pucpr_tool.ini` já editado no mesmo diretório, ou deixe que ele seja criado na primeira execução para editar depois.

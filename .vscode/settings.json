@@ -1,0 +1,6 @@
+{
+  "python.defaultInterpreterPath": "/workspaces/PUCPRRACING/.venv/bin/python",
+  "python.analysis.autoImportCompletions": true,
+  "python.analysis.diagnosticMode": "workspace",
+  "python.analysis.typeCheckingMode": "off"
+}

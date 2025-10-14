@@ -1,0 +1,7 @@
+[tool.black]
+line-length = 88
+# Alvo conforme Python do ambiente (.venv) atual
+target-version = ["py312"]
+
+[tool.isort]
+profile = "black"

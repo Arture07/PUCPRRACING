@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block content %}
+<aside class="sidebar">
+    <h3>Arquivo</h3>
+    <form action="/upload" method="post" enctype="multipart/form-data">
+        <input class="input" type="file" id="file" name="file" accept=".csv" required />
+        <div style="height:8px"></div>
+        <button class="button" type="submit">📁 Carregar CSV</button>
+    </form>
+    <hr />
+    {% if df_info %}
+    <div>
+        <div class="muted">Atual</div>
+        <div style="word-break:break-all">{{ df_info.filepath }}</div>
+        <div class="muted">{{ df_info.rows }} linhas • {{ df_info.cols|length }} colunas</div>
+    </div>
+    {% else %}
+    <div class="muted">Nenhum log carregado</div>
+    {% endif %}
+</aside>
+<section class="content">
+    <h2>PUCPR Racing • Web Analysis</h2>
+    <p class="muted">Envie um CSV e vá para Explorar para visualizar gráficos e métricas.</p>
+    {% if df_info %}
+    <div style="margin-top:12px">
+        <a class="button secondary" href="/explore">Explorar ➜</a>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,142 @@
+{% extends 'base.html' %}
+{% block content %}
+<aside class="sidebar">
+    <h3>Canais Disponíveis</h3>
+    <div class="toolbar">
+        <button class="button secondary" onclick="markAll()">✔️ Marcar</button>
+        <button class="button secondary" onclick="unmarkAll()">❌ Desmarcar</button>
+    </div>
+    <div class="checkbox-list" id="channelsBox">
+        {% for c in cols %}
+        {% if c != 'LapNumber' %}
+        <label><input type="checkbox" value="{{ c }}" onchange="plotSeries()"> {{ c }}</label>
+        {% endif %}
+        {% endfor %}
+    </div>
+    
+    <button class="button" onclick="plotSeries()">📈 Plotar Selecionados</button>
+</aside>
+<section class="content">
+    <div class="toolbar" style="justify-content:space-between;align-items:center">
+        <div>
+            <span class="badge">{{ info.rows }} linhas • {{ info.cols }} colunas</span>
+        </div>
+        <div class="toolbar">
+            <button class="button secondary" onclick="loadLaps()">⏱️ Calcular Voltas</button>
+            <a class="button secondary" href="/download">⬇️ Exportar CSV</a>
+        </div>
+    </div>
+    <div class="tabs">
+        <button class="tab-btn active" onclick="showTab('tab-series', this)">📊 Geral / Plotagem</button>
+        <button class="tab-btn" onclick="showTab('tab-skid', this)">↔️ Skid Pad</button>
+        <button class="tab-btn" onclick="showTab('tab-accel', this)">🏁 Aceleração</button>
+        <button class="tab-btn" onclick="showTab('tab-auto', this)">🏎️ Autocross / Endurance</button>
+    </div>
+    <div id="tab-series">
+        <div class="toolbar row">
+            <button class="tool-btn" onclick="plotSeries()">📈 Plotar Selecionados</button>
+            <button class="tool-btn" onclick="toggleGG()">🎯 Plotar G-G</button>
+        </div>
+        <div class="grid" style="grid-template-columns: 1fr 1fr; align-items: start;">
+            <div class="card">
+                <h3>Dados da Série Temporal</h3><img id="img-series" class="plot" />
+            </div>
+            <div id="card-gg" class="card" style="display:none">
+                <h3>G-G</h3><img id="img-gg" class="plot" />
+            </div>
+        </div>
+    </div>
+    <div id="tab-skid" style="display:none">
+        <div class="grid">
+            <div class="card">
+                <h3>Skid Pad</h3><img class="plot" src="/plot/skid" />
+            </div>
+            <div class="card">
+                <h3>Métricas</h3>
+                <pre id="skid-text" class="plot" style="padding:8px"></pre>
+            </div>
+        </div>
+    </div>
+    <div id="tab-accel" style="display:none">
+        <div class="grid">
+            <div class="card">
+                <h3>Aceleração</h3><img class="plot" src="/plot/accel" />
+            </div>
+            <div class="card">
+                <h3>Métricas</h3>
+                <pre id="accel-text" class="plot" style="padding:8px"></pre>
+            </div>
+        </div>
+    </div>
+    <div id="tab-auto" style="display:none">
+        <div class="toolbar row">
+            <label class="muted" for="color">Cor Mapa:</label>
+            <select id="color" class="input select-accent" onchange="reloadMap()">
+                <option value="">(Nenhuma Cor)</option>
+                {% for c in cols %}
+                <option value="{{ c }}">{{ c }}</option>
+                {% endfor %}
+            </select>
+            <button class="tool-btn" onclick="reloadMap()">🗺️ Plotar Mapa</button>
+        </div>
+        <div class="grid">
+            <div class="card">
+                <h3>Mapa (GPS)</h3><img id="img-map" class="plot" src="/plot/map" />
+            </div>
+            <div class="card">
+                <h3>Suspensão</h3><img class="plot" src="/plot/susp" />
+            </div>
+            <div class="card">
+                <h3>Delta-Time</h3><img class="plot" src="/plot/delta" />
+            </div>
+            <div class="card">
+                <h3>Tempos de Volta</h3>
+                <pre id="laps" class="plot" style="padding:8px"></pre>
+            </div>
+        </div>
+    </div>
+</section>
+
+<script>
+    function qs(id) { return document.getElementById(id); }
+    function selectedChannels() {
+        return Array.from(document.querySelectorAll('#channelsBox input[type="checkbox"]:checked')).map(i => i.value);
+    }
+    function markAll() { document.querySelectorAll('#channelsBox input[type="checkbox"]').forEach(i => i.checked = true); plotSeries(); }
+    function unmarkAll() { document.querySelectorAll('#channelsBox input[type="checkbox"]').forEach(i => i.checked = false); plotSeries(); }
+    function plotSeries() {
+        const chosen = selectedChannels();
+        const url = '/plot/series?' + chosen.map(c => 'ch=' + encodeURIComponent(c)).join('&');
+        qs('img-series').src = url + (chosen.length ? '&' : '?') + 't=' + Date.now();
+    }
+    function reloadMap() {
+        const c = (qs('color') || qs('color-top')).value;
+        const url = '/plot/map' + (c ? ('?c=' + encodeURIComponent(c)) : '');
+        qs('img-map').src = url + (c ? '&' : '?') + 't=' + Date.now();
+    }
+    async function loadLaps() {
+        const res = await fetch('/metrics/laps');
+        const text = await res.text();
+        qs('laps').textContent = text;
+    }
+    async function loadSkid() { const r = await fetch('/metrics/skid'); qs('skid-text').textContent = await r.text(); }
+    async function loadAccel() { const r = await fetch('/metrics/accel'); qs('accel-text').textContent = await r.text(); }
+    function reloadGG() { const el = qs('img-gg'); if (el) { el.src = '/plot/gg?t=' + Date.now(); } }
+    function toggleGG(){
+        const card = qs('card-gg');
+        const isHidden = card.style.display === 'none';
+        card.style.display = isHidden ? 'block' : 'none';
+        if(isHidden){ reloadGG(); }
+    }
+    function showTab(id, btn) {
+        ['tab-series', 'tab-skid', 'tab-accel', 'tab-auto'].forEach(t => qs(t).style.display = (t === id ? 'block' : 'none'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        if (id === 'tab-skid') loadSkid();
+        if (id === 'tab-accel') loadAccel();
+        if (id === 'tab-auto') { reloadMap(); loadLaps(); }
+    }
+    // inicial
+    plotSeries();
+</script>
+{% endblock %}
