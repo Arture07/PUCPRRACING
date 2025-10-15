@@ -1,6 +1,16 @@
 {% extends 'base.html' %}
 {% block content %}
 <aside class="sidebar">
+    <form action="/upload" method="post" enctype="multipart/form-data" class="upload-box">
+        <label class="file-label">
+            <input class="file-input" type="file" id="file" name="file" accept=".csv" required />
+            <span class="btn-primary">📂 Abrir Log (.csv)</span>
+        </label>
+        {% if info and info.filename %}
+        <div class="muted" style="margin-top:6px">Log: {{ info.filename.split('/')[-1] }}</div>
+        {% endif %}
+        <button class="btn-secondary" type="submit">Carregar</button>
+    </form>
     <h3>Canais Disponíveis</h3>
     <div class="toolbar">
         <button class="button secondary" onclick="markAll()">✔️ Marcar</button>
@@ -17,13 +27,21 @@
     <button class="button" onclick="plotSeries()">📈 Plotar Selecionados</button>
 </aside>
 <section class="content">
-    <div class="toolbar" style="justify-content:space-between;align-items:center">
-        <div>
-            <span class="badge">{{ info.rows }} linhas • {{ info.cols }} colunas</span>
+    <div class="top-toolbar">
+        <div class="toolbar-left">
+            <button class="toolbar-btn" onclick="plotSeries()">📈 Plotar Selecionados</button>
+            <button class="toolbar-btn" onclick="toggleGG()">🎯 Plotar G-G</button>
+            <button class="toolbar-btn" onclick="reloadMap()">🗺️ Plotar Mapa</button>
         </div>
-        <div class="toolbar">
-            <button class="button secondary" onclick="loadLaps()">⏱️ Calcular Voltas</button>
-            <a class="button secondary" href="/download">⬇️ Exportar CSV</a>
+        <div class="toolbar-right">
+            <label class="muted" for="color-top">Cor Mapa:</label>
+            <select id="color-top" class="input select-accent" onchange="reloadMap()">
+                <option value="">(Nenhuma Cor)</option>
+                {% for c in cols %}
+                <option value="{{ c }}">{{ c }}</option>
+                {% endfor %}
+            </select>
+            <span class="badge">{{ info.rows }} linhas • {{ info.cols }} colunas</span>
         </div>
     </div>
     <div class="tabs">
@@ -39,17 +57,32 @@
         </div>
         <div class="grid" style="grid-template-columns: 1fr 1fr; align-items: start;">
             <div class="card">
-                <h3>Dados da Série Temporal</h3><img id="img-series" class="plot" />
+                <h3>Dados da Série Temporal</h3>
+                <div class="plot-box" data-endpoint="/plot/series" data-kind="series">
+                    <div class="plot-toolbar"></div>
+                    <div class="plot-rect"></div>
+                    <div id="plot-series" class="plot"></div>
+                </div>
             </div>
             <div id="card-gg" class="card" style="display:none">
-                <h3>G-G</h3><img id="img-gg" class="plot" />
+                <h3>G-G</h3>
+                <div class="plot-box" data-endpoint="/plot/gg" data-kind="gg">
+                    <div class="plot-toolbar"></div>
+                    <div class="plot-rect"></div>
+                    <div id="plot-gg" class="plot"></div>
+                </div>
             </div>
         </div>
     </div>
     <div id="tab-skid" style="display:none">
         <div class="grid">
             <div class="card">
-                <h3>Skid Pad</h3><img class="plot" src="/plot/skid" />
+                <h3>Skid Pad</h3>
+                <div class="plot-box" data-endpoint="/plot/skid" data-kind="skid">
+                    <div class="plot-toolbar"></div>
+                    <div class="plot-rect"></div>
+                    <div id="plot-skid" class="plot"></div>
+                </div>
             </div>
             <div class="card">
                 <h3>Métricas</h3>
@@ -60,7 +93,12 @@
     <div id="tab-accel" style="display:none">
         <div class="grid">
             <div class="card">
-                <h3>Aceleração</h3><img class="plot" src="/plot/accel" />
+                <h3>Aceleração</h3>
+                <div class="plot-box" data-endpoint="/plot/accel" data-kind="accel">
+                    <div class="plot-toolbar"></div>
+                    <div class="plot-rect"></div>
+                    <div id="plot-accel" class="plot"></div>
+                </div>
             </div>
             <div class="card">
                 <h3>Métricas</h3>
@@ -69,25 +107,30 @@
         </div>
     </div>
     <div id="tab-auto" style="display:none">
-        <div class="toolbar row">
-            <label class="muted" for="color">Cor Mapa:</label>
-            <select id="color" class="input select-accent" onchange="reloadMap()">
-                <option value="">(Nenhuma Cor)</option>
-                {% for c in cols %}
-                <option value="{{ c }}">{{ c }}</option>
-                {% endfor %}
-            </select>
-            <button class="tool-btn" onclick="reloadMap()">🗺️ Plotar Mapa</button>
-        </div>
         <div class="grid">
             <div class="card">
-                <h3>Mapa (GPS)</h3><img id="img-map" class="plot" src="/plot/map" />
+                <h3>Mapa (GPS)</h3>
+                <div class="plot-box" data-endpoint="/plot/map" data-kind="map">
+                    <div class="plot-toolbar"></div>
+                    <div class="plot-rect"></div>
+                    <div id="plot-map" class="plot"></div>
+                </div>
             </div>
             <div class="card">
-                <h3>Suspensão</h3><img class="plot" src="/plot/susp" />
+                <h3>Suspensão</h3>
+                <div class="plot-box" data-endpoint="/plot/susp" data-kind="susp">
+                    <div class="plot-toolbar"></div>
+                    <div class="plot-rect"></div>
+                    <div id="plot-susp" class="plot"></div>
+                </div>
             </div>
             <div class="card">
-                <h3>Delta-Time</h3><img class="plot" src="/plot/delta" />
+                <h3>Delta-Time</h3>
+                <div class="plot-box" data-endpoint="/plot/delta" data-kind="delta">
+                    <div class="plot-toolbar"></div>
+                    <div class="plot-rect"></div>
+                    <div id="plot-delta" class="plot"></div>
+                </div>
             </div>
             <div class="card">
                 <h3>Tempos de Volta</h3>
@@ -104,24 +147,24 @@
     }
     function markAll() { document.querySelectorAll('#channelsBox input[type="checkbox"]').forEach(i => i.checked = true); plotSeries(); }
     function unmarkAll() { document.querySelectorAll('#channelsBox input[type="checkbox"]').forEach(i => i.checked = false); plotSeries(); }
-    function plotSeries() {
+    async function plotSeries() {
         const chosen = selectedChannels();
         const url = '/plot/series?' + chosen.map(c => 'ch=' + encodeURIComponent(c)).join('&');
-        qs('img-series').src = url + (chosen.length ? '&' : '?') + 't=' + Date.now();
+        await window.renderPlot('plot-series', url);
     }
     function reloadMap() {
-        const c = (qs('color') || qs('color-top')).value;
+        const c = (qs('color-top')) ? qs('color-top').value : '';
         const url = '/plot/map' + (c ? ('?c=' + encodeURIComponent(c)) : '');
-        qs('img-map').src = url + (c ? '&' : '?') + 't=' + Date.now();
+        window.renderPlot('plot-map', url);
     }
     async function loadLaps() {
         const res = await fetch('/metrics/laps');
         const text = await res.text();
         qs('laps').textContent = text;
     }
-    async function loadSkid() { const r = await fetch('/metrics/skid'); qs('skid-text').textContent = await r.text(); }
-    async function loadAccel() { const r = await fetch('/metrics/accel'); qs('accel-text').textContent = await r.text(); }
-    function reloadGG() { const el = qs('img-gg'); if (el) { el.src = '/plot/gg?t=' + Date.now(); } }
+    async function loadSkid() { const r = await fetch('/metrics/skid'); qs('skid-text').textContent = await r.text(); window.renderPlot('plot-skid', '/plot/skid'); }
+    async function loadAccel() { const r = await fetch('/metrics/accel'); qs('accel-text').textContent = await r.text(); window.renderPlot('plot-accel', '/plot/accel'); }
+    function reloadGG() { window.renderPlot('plot-gg', '/plot/gg'); }
     function toggleGG(){
         const card = qs('card-gg');
         const isHidden = card.style.display === 'none';
@@ -136,7 +179,35 @@
         if (id === 'tab-accel') loadAccel();
         if (id === 'tab-auto') { reloadMap(); loadLaps(); }
     }
-    // inicial
-    plotSeries();
+    // iniciar tudo após a página carregar (garante que app.js já definiu renderPlot)
+    window.addEventListener('load', async () => {
+        if (window.initPlotToolbars) window.initPlotToolbars();
+        await plotSeries();
+        reloadGG();
+        loadSkid();
+        loadAccel();
+        reloadMap();
+    });
 </script>
+
+<!-- Modal Configurar Subplots -->
+<div id="subplot-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <strong>Subplot configuration tool</strong>
+        </div>
+        <div class="modal-body">
+            <label>left <input type="range" min="0" max="0.2" step="0.001" name="left" value="0.053" data-def="0.053"></label>
+            <label>bottom <input type="range" min="0" max="0.2" step="0.001" name="bottom" value="0.107" data-def="0.107"></label>
+            <label>right <input type="range" min="0.8" max="1" step="0.001" name="right" value="0.99" data-def="0.99"></label>
+            <label>top <input type="range" min="0.8" max="1" step="0.001" name="top" value="0.952" data-def="0.952"></label>
+            <label>wspace <input type="range" min="0" max="0.5" step="0.01" name="wspace" value="0.2" data-def="0.2"></label>
+            <label>hspace <input type="range" min="0" max="0.5" step="0.01" name="hspace" value="0.2" data-def="0.2"></label>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-secondary reset-btn">Reset</button>
+            <button class="btn-secondary close-btn">Fechar</button>
+        </div>
+    </div>
+</div>
 {% endblock %}

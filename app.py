@@ -10,6 +10,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from flask import (Flask, Response, flash, redirect, render_template, request,
                    send_file, session, url_for)
+import plotly.graph_objects as go
+import plotly.io as pio
 
 from calculations import (
     calcular_metricas_aceleracao,
@@ -79,6 +81,7 @@ def create_app() -> Flask:
             df = DATA_CACHE[filepath]
             df_info = dict(
                 filepath=filepath,
+                basename=os.path.basename(filepath),
                 rows=len(df),
                 cols=list(df.columns),
                 has_laps=("LapNumber" in df.columns),
@@ -126,7 +129,7 @@ def create_app() -> Flask:
         info = dict(
             rows=len(df),
             cols=len(cols),
-            filename=session.get("filepath"),
+            filename=os.path.basename(session.get("filepath") or ""),
         )
         return render_template("explore.html", cols=cols, info=info)
 
@@ -137,18 +140,42 @@ def create_app() -> Flask:
         buf.seek(0)
         return buf.getvalue()
 
+    def _apply_subplot_params(fig: plt.Figure):
+        try:
+            kw = {}
+            for k in ["left", "right", "top", "bottom", "wspace", "hspace"]:
+                v = request.args.get(k)
+                if v is not None:
+                    kw[k] = float(v)
+            if kw:
+                fig.subplots_adjust(**kw)
+        except Exception:
+            pass
+
     @app.get("/plot/series")
     def plot_series():
         df = _get_df()
         if df is None:
             return Response("No data", status=400)
         channels = request.args.getlist("ch")
-        fig, ax = plt.subplots(figsize=(8, 3), dpi=120)
-        configurar_estilo_plot(ax, "Série Temporal")
-        plotar_dados_no_canvas(df, channels, None, fig, ax)
-        png = _fig_bytes(fig)
-        plt.close(fig)
-        return Response(png, mimetype="image/png")
+        # Plotly: série temporal interativa
+        fig = go.Figure()
+        if isinstance(df.index, pd.DatetimeIndex):
+            x = df.index
+        else:
+            x = list(range(len(df)))
+        for ch in channels:
+            if ch in df.columns:
+                fig.add_trace(go.Scatter(x=x, y=df[ch], mode='lines', name=ch))
+        fig.update_layout(
+            template='plotly_dark',
+            title='Dados da Série Temporal',
+            xaxis_title='Tempo',
+            yaxis_title='Valor',
+            margin=dict(l=40, r=10, t=40, b=30),
+            height=420,
+        )
+        return Response(pio.to_json(fig), mimetype='application/json')
 
     @app.get("/plot/gg")
     def plot_gg():
@@ -159,12 +186,17 @@ def create_app() -> Flask:
         gg_data, lat_col, lon_col, error = calcular_metricas_gg(df, channel_mapping)
         if error:
             return Response(error, status=400)
-        fig, ax = plt.subplots(figsize=(5, 5), dpi=120)
-        configurar_estilo_plot(ax, "Diagrama G-G")
-        plotar_gg_diagrama_nos_eixos(gg_data, None, fig, ax, lat_col, lon_col)
-        png = _fig_bytes(fig)
-        plt.close(fig)
-        return Response(png, mimetype="image/png")
+        fig = go.Figure()
+        if not gg_data.empty and lat_col and lon_col:
+            fig.add_trace(go.Scattergl(
+                x=gg_data[lat_col], y=gg_data[lon_col], mode='markers',
+                marker=dict(size=3, color='#FBC02D'), name='G-G'
+            ))
+            lim = max(gg_data[lat_col].abs().max(), gg_data[lon_col].abs().max()) * 1.1
+            fig.update_xaxes(range=[-lim, lim], zeroline=True)
+            fig.update_yaxes(range=[-lim, lim], zeroline=True, scaleanchor="x", scaleratio=1)
+        fig.update_layout(template='plotly_dark', title='Diagrama G-G', xaxis_title=f'{lat_col} (G)', yaxis_title=f'{lon_col} (G)', height=480)
+        return Response(pio.to_json(fig), mimetype='application/json')
 
     @app.get("/plot/map")
     def plot_map():
@@ -175,14 +207,17 @@ def create_app() -> Flask:
         lat_col = channel_mapping.get("gpslat")
         lon_col = channel_mapping.get("gpslon")
         color_channel = request.args.get("c") or None
-        fig, ax = plt.subplots(figsize=(5, 5), dpi=120)
-        configurar_estilo_plot(ax, "Mapa da Pista")
-        plotar_mapa_pista_nos_eixos(
-            df, None, fig, ax, lat_col, lon_col, color_channel
-        )
-        png = _fig_bytes(fig)
-        plt.close(fig)
-        return Response(png, mimetype="image/png")
+        fig = go.Figure()
+        if lat_col in df.columns and lon_col in df.columns:
+            lat = df[lat_col]
+            lon = df[lon_col]
+            if color_channel and color_channel in df.columns:
+                fig.add_trace(go.Scattergl(x=lon, y=lat, mode='markers', marker=dict(size=3, color=df[color_channel], colorscale='Plasma', colorbar=dict(title=color_channel)), name='GPS'))
+            else:
+                fig.add_trace(go.Scattergl(x=lon, y=lat, mode='markers', marker=dict(size=3, color='#FBC02D'), name='GPS'))
+            fig.update_yaxes(scaleanchor="x", scaleratio=1)
+            fig.update_layout(template='plotly_dark', title='Mapa da Pista', xaxis_title=f'{lon_col} (Longitude)', yaxis_title=f'{lat_col} (Latitude)', height=520, margin=dict(l=40,r=10,t=40,b=30))
+        return Response(pio.to_json(fig), mimetype='application/json')
 
     @app.get("/plot/susp")
     def plot_susp_hist():
@@ -190,19 +225,16 @@ def create_app() -> Flask:
         if df is None:
             return Response("No data", status=400)
         channel_mapping, _, _ = load_config()
+        import numpy as np
+        from config_manager import get_channel_name
         susp_internal = ["suspposfl", "suspposfr", "suspposrl", "suspposrr"]
-        cols = [
-            c
-            for c in (channel_mapping.get(n) for n in susp_internal)
-            if c and c in df.columns
-        ]
-        fig, ax = plt.subplots(figsize=(6, 3), dpi=120)
-        configurar_estilo_plot(ax, "Histograma Suspensão")
-        # a função original espera config_map, aqui passamos lista de colunas já resolvida
-        plotar_histograma_suspensao(df, None, fig, ax, channel_mapping)
-        png = _fig_bytes(fig)
-        plt.close(fig)
-        return Response(png, mimetype="image/png")
+        cols = [get_channel_name(channel_mapping, n, df.columns) for n in susp_internal]
+        cols = [c for c in cols if c and c in df.columns]
+        fig = go.Figure()
+        for c in cols:
+            fig.add_trace(go.Histogram(x=df[c].dropna(), nbinsx=30, name=c, opacity=0.75))
+        fig.update_layout(template='plotly_dark', barmode='overlay', title='Histograma Posição Suspensão', xaxis_title='Deslocamento (mm)', yaxis_title='Frequência', height=420)
+        return Response(pio.to_json(fig), mimetype='application/json')
 
     @app.get("/plot/accel")
     def plot_accel():
@@ -210,37 +242,51 @@ def create_app() -> Flask:
         if df is None:
             return Response("No data", status=400)
         channel_mapping, _, _ = load_config()
-        fig, ax = plt.subplots(figsize=(6, 3), dpi=120)
-        configurar_estilo_plot(ax, "Aceleração")
-        plotar_analise_aceleracao(df, None, fig, ax, channel_mapping)
-        png = _fig_bytes(fig)
-        plt.close(fig)
-        return Response(png, mimetype="image/png")
+        # lógica similar à de plotting.plotar_analise_aceleracao
+        from config_manager import get_channel_name
+        ws_fl = get_channel_name(channel_mapping, "wheelspeedfl", df.columns)
+        ws_fr = get_channel_name(channel_mapping, "wheelspeedfr", df.columns)
+        gps_speed = get_channel_name(channel_mapping, "gpsspeed", df.columns)
+        vehicle_speed = get_channel_name(channel_mapping, "vehiclespeed", df.columns)
+        speed = None; label = ''
+        if vehicle_speed and vehicle_speed in df.columns:
+            speed = df[vehicle_speed]; label = f"{vehicle_speed} (mapeada)"
+        elif ws_fl and ws_fr and ws_fl in df.columns and ws_fr in df.columns:
+            speed = df[[ws_fl, ws_fr]].mean(axis=1); label = f"Média Rodas ({ws_fl}, {ws_fr})"
+        elif gps_speed and gps_speed in df.columns:
+            speed = df[gps_speed]; label = f"{gps_speed} (GPS)"
+        fig = go.Figure()
+        if speed is not None:
+            x = df.index if isinstance(df.index, pd.DatetimeIndex) else list(range(len(df)))
+            fig.add_trace(go.Scatter(x=x, y=speed, mode='lines', name=label))
+        fig.update_layout(template='plotly_dark', title='Análise Aceleração', xaxis_title='Tempo', yaxis_title='Velocidade (m/s)', height=420)
+        return Response(pio.to_json(fig), mimetype='application/json')
 
     @app.get("/plot/skid")
     def plot_skid():
         df = _get_df()
         if df is None:
             return Response("No data", status=400)
+        # simplificado: usa aceleração lateral ao longo do tempo
         channel_mapping, _, _ = load_config()
-        fig, ax = plt.subplots(figsize=(6, 3), dpi=120)
-        configurar_estilo_plot(ax, "Skidpad")
-        plotar_analise_skidpad(df, None, fig, ax, channel_mapping)
-        png = _fig_bytes(fig)
-        plt.close(fig)
-        return Response(png, mimetype="image/png")
+        from config_manager import get_channel_name
+        lat_col = get_channel_name(channel_mapping, 'lataccel', df.columns)
+        fig = go.Figure()
+        if lat_col and lat_col in df.columns:
+            x = df.index if isinstance(df.index, pd.DatetimeIndex) else list(range(len(df)))
+            fig.add_trace(go.Scatter(x=x, y=df[lat_col], mode='lines', name=lat_col))
+        fig.update_layout(template='plotly_dark', title='Skid Pad', xaxis_title='Tempo', yaxis_title='Aceleração Lateral (G)', height=420)
+        return Response(pio.to_json(fig), mimetype='application/json')
 
     @app.get("/plot/delta")
     def plot_delta():
         df = _get_df()
         if df is None:
             return Response("No data", status=400)
-        fig, ax = plt.subplots(figsize=(6, 3), dpi=120)
-        configurar_estilo_plot(ax, "Delta-Time")
-        plotar_delta_time(df, None, fig, ax)
-        png = _fig_bytes(fig)
-        plt.close(fig)
-        return Response(png, mimetype="image/png")
+        fig = go.Figure()
+        fig.add_annotation(text='Delta-Time (Não Implementado)', x=0.5, y=0.5, showarrow=False)
+        fig.update_layout(template='plotly_dark', title='Delta-Time', height=360)
+        return Response(pio.to_json(fig), mimetype='application/json')
 
     @app.get("/metrics/laps")
     def metrics_laps():

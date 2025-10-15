@@ -9,3 +9,6 @@ numpy==1.26.4
 matplotlib==3.8.4
 
 gunicorn==21.2.0
+
+# Interatividade no front-end
+plotly==5.24.1

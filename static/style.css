@@ -34,6 +34,12 @@ header {
     background: var(--bg-secondary)
 }
 
+.titlebar {
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    box-shadow: inset 0 -1px 0 rgba(0,0,0,0.2);
+}
+
 .header-inner {
     width: 100%;
     margin: 0;
@@ -129,13 +135,26 @@ hr {
     padding: 10px
 }
 
-img.plot {
-    width: 100%;
-    height: auto;
-    background: var(--bg-tertiary);
-    border-radius: 6px;
-    border: 1px solid var(--border)
-}
+.plot { width: 100%; min-height: 360px; background: var(--bg-tertiary); border-radius: 6px; border: 1px solid var(--border); }
+
+/* Plot container with toolbar */
+.plot-box { position: relative; overflow: hidden; border-radius: 6px; }
+.plot-box img.plot { display: block; transform-origin: center center; transition: transform 0.03s linear; }
+.plot-toolbar { position: absolute; left: 8px; bottom: 8px; display: flex; gap: 6px; background: rgba(0,0,0,0.25); padding: 4px 6px; border-radius: 6px; backdrop-filter: blur(2px); }
+.plot-btn { background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border); border-radius: 4px; height: 28px; width: 32px; cursor: pointer; }
+.plot-btn:hover { filter: brightness(1.05); }
+.plot-btn.active { outline: 2px solid var(--accent-gold); }
+.plot-rect { position: absolute; border: 1px dashed var(--accent-gold); background: rgba(251,192,45,0.1); pointer-events: none; display: none; }
+.plot-box.pan { cursor: move; }
+.plot-box.zoom { cursor: crosshair; }
+
+/* Modal (subplot configuration tool) */
+.modal { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,0.5); z-index: 50; }
+.modal-content { width: 520px; max-width: 90vw; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; }
+.modal-header { padding: 10px; border-bottom: 1px solid var(--border); }
+.modal-body { display: grid; gap: 10px; padding: 10px; }
+.modal-body label { display: grid; grid-template-columns: 60px 1fr; align-items: center; gap: 8px; }
+.modal-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 10px; border-top: 1px solid var(--border); }
 
 .badge {
     display: inline-block;
@@ -230,6 +249,53 @@ img.plot {
 .checkbox-list input[type="checkbox"] {
     accent-color: var(--accent-red)
 }
+
+/* Barra de ferramentas superior (estilo CustomTkinter) */
+.top-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 10px;
+}
+.toolbar-left, .toolbar-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap }
+.toolbar-btn {
+    background: var(--accent-red);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 12px;
+    height: 32px;
+    cursor: pointer;
+}
+.toolbar-btn:hover { filter: brightness(.95) }
+
+/* Upload estilo "Abrir Log (.csv)" */
+.upload-box { display: grid; gap: 6px; margin-bottom: 8px }
+.file-label { display: inline-block }
+.file-input { position: absolute; opacity: 0; width: 1px; height: 1px }
+.btn-primary {
+    display: inline-block;
+    background: var(--accent-red);
+    color: #fff;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-weight: 600;
+}
+.btn-secondary {
+    display: inline-block;
+    background: var(--accent-gold);
+    color: #000;
+    border-radius: 8px;
+    padding: 8px 12px;
+    border: none;
+    cursor: pointer;
+}
+.btn-secondary:hover, .btn-primary:hover { filter: brightness(.95) }
 
 /* Flash messages */
 .flash-container { margin-bottom: 8px; }
